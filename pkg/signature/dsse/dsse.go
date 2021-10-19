@@ -25,7 +25,22 @@ import (
 
 	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 	"github.com/sigstore/sigstore/pkg/signature"
+	"golang.org/x/crypto/ssh"
 )
+
+func GetKeyID(p signature.PublicKeyProvider) (string, error) {
+	pub, err := p.PublicKey()
+	if err != nil {
+		return "", err
+	}
+
+	sshpk, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return "", err
+	}
+	fingerprint := ssh.FingerprintSHA256(sshpk)
+	return fingerprint, nil
+}
 
 func WrapSigner(s signature.Signer, payloadType string) signature.Signer {
 	return &wrappedSigner{
@@ -54,11 +69,15 @@ func (w *wrappedSigner) SignMessage(r io.Reader, opts ...signature.SignOption) (
 		return nil, err
 	}
 
+	//KeyId empty on error
+	// keyID, _ := GetKeyID(w.s)
+
 	env := dsse.Envelope{
 		PayloadType: w.payloadType,
 		Payload:     base64.StdEncoding.EncodeToString(p),
 		Signatures: []dsse.Signature{
 			{
+				// KeyID: keyID,
 				Sig: base64.StdEncoding.EncodeToString(sig),
 			},
 		},
@@ -101,6 +120,10 @@ type innerWrapper struct {
 
 func (w *innerWrapper) Verify(_ string, data []byte, sig []byte) error {
 	return w.v.VerifySignature(bytes.NewReader(sig), bytes.NewReader(data))
+}
+
+func (w *innerWrapper) KeyID() (string, error) {
+	return GetKeyID(w.v)
 }
 
 func WrapSignerVerifier(sv signature.SignerVerifier, payloadType string) signature.SignerVerifier {
