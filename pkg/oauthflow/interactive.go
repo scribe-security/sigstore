@@ -38,6 +38,7 @@ const oobRedirectURI = "urn:ietf:wg:oauth:2.0:oob"
 type InteractiveIDTokenGetter struct {
 	MessagePrinter func(url string)
 	HTMLPage       string
+	ExtraOpt       []oauth2.AuthCodeOption
 }
 
 func (i *InteractiveIDTokenGetter) GetIDToken(p *oidc.Provider, cfg oauth2.Config) (*OIDCIDToken, error) {
@@ -67,6 +68,9 @@ func (i *InteractiveIDTokenGetter) GetIDToken(p *oidc.Provider, cfg oauth2.Confi
 	}
 
 	opts := append(pkce.AuthURLOpts(), oauth2.AccessTypeOnline, oidc.Nonce(nonce))
+	if len(i.ExtraOpt) > 0 {
+		opts = append(opts, i.ExtraOpt...)
+	}
 	authCodeURL := cfg.AuthCodeURL(stateToken, opts...)
 	var code string
 	if err := open.Run(authCodeURL); err != nil {
